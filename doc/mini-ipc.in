@@ -67,6 +67,11 @@ platform).  Nonetheless, I borrowed quite some ideas from the
 implementation by Tomasz Wlostowski, who must definitely be
 considered co-author and my inspiring muse.
 
+This version also supports a @i{freestanding} mode, whereas a
+memory-mapped embedded CPU can act as a server for a process
+on the main CPU that acts as a client.  The library offers the same
+API as the normal hosted version, but only for server operation.
+
 @menu
 * Basic Ideas::                 
 * The Main Data Structure::     
@@ -75,6 +80,7 @@ considered co-author and my inspiring muse.
 * Diagnostics::                 
 * The Communication Protocol::  
 * Transport Mechanisms::        
+* Freestanding Operation::      
 * Examples::                    
 * Bugs::                        
 @end menu
@@ -481,6 +487,81 @@ before creating the channel, because the parameter will be used by the
 child process.
 
 @c ##########################################################################
+@node Freestanding Operation
+@chapter Freestanding Operation
+
+This version of the library can be compiled for a @i{freestanding}
+system that acts as a server for a hosted system.  Our use case is an
+LM32 soft-core that runs some real-time activities on request of the
+main ARM processor.
+
+The @i{Makefiles} of the package identify a @i{freestanding}
+compilation environment by the @code{CROSS_COMPILE} prefix: if the
+compiler has a dynamic C library, it is assumed to be hosted,
+otherwise it's assumed to be freestanding.  The user can force
+freestanding compilation by passing @code{IPC_FREESTANDING}
+in the environment or on the command line of @i{make}.
+
+When compiling in a freestanding environment, only
+@code{minipc-mem-server.c} is compiled. The source file includes
+the usual @code{minipc.h} and @code{minipc-int.h}, but the code
+itself is simpler (no sockets, no @code{/dev/mem} nor @i{shmget}).
+
+In a freestanding server, the following functions are implemented,
+with some limitations:
+
+@table @code
+
+@item minipc_server_create
+
+	The function receives the usual arguments (name and flags),
+        but the name is mandated to be @code{mem:@i{XXXX}} where the
+        trailing part is an hex address. The data structure for
+        communication is stored at that address in CPU memory.
+
+@item minipc_close
+
+	Works as expected, releasing resources. Note, however,
+        that only one server may be active at any time (so, you'll
+        most likely run a server at boot and won't ever close it).
+
+@item minipc_export
+
+	The function exports one procedure that can be called
+        by the server. To void using @i{malloc}, the library uses
+        a static array of structures to host export information.
+        The length of the array is @code{MINIPC_MAX_EXPORT}
+        (12 by default).
+
+@item minipc_unexport
+
+	The function frees one slot in the static array.
+
+@item minipc_get_next_arg
+
+	The function works exactly like it does in hosted
+        environments
+
+@item minipc_server_action
+
+	The function receives the same arguments as the equivalent
+        one in hosted environments, but doesn't honor the @i{timeout}
+        value. Timing is very device-specific, so the library can't
+        provide any. If a new request is pending, the function serves
+        it, otherwise it returns immediately.
+
+@end table
+
+In our use case, the compiler has @code{<strings.h>} and a few more
+headers needed to compile the library, but lacks @code{<stdint.h>}.
+
+As an ugly workaround, the file @code{arch-lm32/stdint.h}: the
+@i{Makefile} adds @code{-Iarch-$(ARCH)} to the compiler's command
+line, so we can build the library using @code{ARCH=lm32}.  You may use
+a similar trick to add missing headers for your freestanding
+architecture.
+
+@c ##########################################################################
 @node Examples
 @chapter Examples
 
@@ -492,6 +573,7 @@ are logically divided in groups.
 * Pty-based Example::           
 * A Bridge to Shared Memory::   
 * Native Shared Memory::        
+* Freestanding Server::         
 @end menu
 
 @c ==========================================================================
@@ -748,6 +830,22 @@ proper @code{errno} value in the packet:
    minipc_call: remote error "No such file or directory"
    .//shmem-client: remote "stat": Remote I/O error
 @end example
+
+@c ==========================================================================
+@node Freestanding Server
+@section Freestanding Server
+
+When compiling for a freestanding CPU environment, the @i{Makefile}
+only builds the example @code{freestanding-server} . This exports
+two functions, @code{add} and @code{mul}.
+
+You may use the @code{add} functionality from a @code{shmem-client}
+example file, by passing the proper address in @code{/dev/mem}.
+
+In order to run this example, however, you'll need to complete it
+with all the missing stuff (drivers, linker scripts, an so on),
+as well as fixing the address used for the communication data
+structure.
 
 @c ##########################################################################
 @node Bugs
