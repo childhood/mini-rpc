@@ -40,7 +40,7 @@ struct minipc_pd rpc_setenv = {
 
 /* addition of two integers */
 struct minipc_pd rpc_add = {
-	.name = "add",
+	.name = "ssss",
 	.retval = MINIPC_ARG_ENCODE(MINIPC_ATYPE_INT, int),
 	.args = {
 		MINIPC_ARG_ENCODE(MINIPC_ATYPE_INT, int),
