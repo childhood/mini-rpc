@@ -132,7 +132,7 @@ int main(int argc, char **argv)
 
 	snprintf(ipcname, sizeof(ipcname), "shm:%s", argv[1]);
 
-	client = minipc_client_create(ipcname, 0);
+	client = minipc_client_create(argv[1], 0);
 	if (!client) {
 		fprintf(stderr, "%s: rpc_open(): %s\n", argv[0],
 			strerror(errno));
